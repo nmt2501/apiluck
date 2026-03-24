@@ -12,7 +12,7 @@ app.get("/api/luck", async (req, res) => {
         const data = response.data;
 
         const result = {
-            phien: data.next_session,
+            phien_hien_tai: data.next_session,
             du_doan: data.prediction,
             do_tin_cay: data.reason
         };
