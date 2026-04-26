@@ -64,51 +64,70 @@ function analyzeAI(history) {
     return {
       du_doan: "Chưa đủ dữ liệu",
       do_tin_cay: 0,
+      tong_quan: "Chưa đủ 5 phiên",
       chi_tiet: []
     };
   }
 
-  const current = history.join("");
-
+  const last10 = history.slice(-10);
   const last5 = history.slice(-5);
-  const tai = last5.filter(x => x === "T").length;
-  const xiu = last5.filter(x => x === "X").length;
 
-  // basic prediction
-  let du_doan = tai >= xiu ? "Tài" : "Xỉu";
+  const tai5 = last5.filter(x => x === "T").length;
+  const xiu5 = last5.filter(x => x === "X").length;
 
-  // confidence
-  let do_tin_cay = Math.round((Math.max(tai, xiu) / 5) * 100);
+  const tai10 = last10.filter(x => x === "T").length;
+  const xiu10 = last10.filter(x => x === "X").length;
 
-  // detect pattern
-  let best = 0;
-  let matchName = "Không rõ";
+  const currentPattern = history.join("");
 
-  const patterns = [
-    { name: "Bệt Tài", pattern: "TTTT" },
-    { name: "Bệt Xỉu", pattern: "XXXX" },
-    { name: "Cầu 1-1", pattern: "TXTX" }
-  ];
+  // ======================
+  // 🎯 DỰ ĐOÁN CHÍNH
+  // ======================
+  let du_doan = tai5 >= xiu5 ? "Tài" : "Xỉu";
 
-  for (let p of patterns) {
-    const score = similarity(current.slice(-p.pattern.length), p.pattern);
+  // ======================
+  // 📊 CONFIDENCE BASE
+  // ======================
+  let base = Math.round((Math.max(tai5, xiu5) / 5) * 100);
 
-    if (score > best) {
-      best = score;
-      matchName = p.name;
-    }
-  }
+  // ======================
+  // 🔥 PHÂN TÍCH CẦU
+  // ======================
+  let cau = "Bình thường";
 
-  do_tin_cay = Math.min(95, do_tin_cay + Math.round(best / 2));
+  if (currentPattern.endsWith("TTTT") || tai10 >= 8) cau = "Bệt Tài";
+  if (currentPattern.endsWith("XXXX") || xiu10 >= 8) cau = "Bệt Xỉu";
+
+  if (currentPattern.includes("TXTXTX")) cau = "Cầu 1-1";
+
+  // ======================
+  // 📈 TREND ANALYSIS
+  // ======================
+  let trend = "Ổn định";
+
+  if (tai10 > xiu10 + 2) trend = "Thiên Tài";
+  if (xiu10 > tai10 + 2) trend = "Thiên Xỉu";
+
+  // ======================
+  // 🔥 ĐỘ TIN CẬY CUỐI
+  // ======================
+  let do_tin_cay = base;
+
+  if (cau !== "Bình thường") do_tin_cay += 10;
+  if (trend !== "Ổn định") do_tin_cay += 5;
+
+  do_tin_cay = Math.min(95, do_tin_cay);
 
   return {
     du_doan,
-    do_tin_cay,
+    do_tin_cay: do_tin_cay + "%",
+    tong_quan: `${cau} | ${trend}`,
+
     chi_tiet: [
-      "5 phiên gần nhất",
-      `Tài: ${tai}`,
-      `Xỉu: ${xiu}`,
-      `Pattern match: ${matchName}`
+      `5 phiên gần nhất: Tài ${tai5} - Xỉu ${xiu5}`,
+      `10 phiên gần nhất: Tài ${tai10} - Xỉu ${xiu10}`,
+      `Cầu hiện tại: ${cau}`,
+      `Xu hướng: ${trend}`
     ]
   };
 }
@@ -126,7 +145,10 @@ async function fetchData() {
     const data = res.data?.data;
     if (!data || !data.OpenCode) return;
 
-    if (lastExpect && data.Expect === lastExpect) return;
+    if (data.Expect === lastExpect) {
+  console.log("⏳ chưa có phiên mới:", data.Expect);
+  return;
+}
 
     lastExpect = data.Expect;
 
@@ -167,11 +189,15 @@ async function fetchData() {
 // ======================
 // START
 // ======================
+async function loop() {
+  await fetchData();
+  setTimeout(loop, 1500); // nhanh hơn interval + ổn định hơn
+}
+
 (async () => {
   await fetchData();
+  loop();
 })();
-
-setInterval(fetchData, 3000);
 
 // ======================
 // ROUTE
