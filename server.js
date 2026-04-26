@@ -296,7 +296,7 @@ function analyzeAI(history) {
 }
 
 // ======================
-// 🔄 FETCH
+// 🔄 FETCH (UPGRADED)
 // ======================
 async function fetchData() {
   try {
@@ -308,21 +308,37 @@ async function fetchData() {
     const data = res.data?.data;
     if (!data || !data.OpenCode) return;
 
-    if (data.Expect === lastExpect) {
-  console.log("⏳ chưa có phiên mới:", data.Expect);
-  return;
-}
+    // ======================
+    // 🔥 CHẶN TRÙNG + FIX LỖI LỆCH PHIÊN
+    // ======================
+    if (lastExpect && data.Expect === lastExpect) {
+      console.log("⏳ chưa có phiên mới:", data.Expect);
+      return;
+    }
 
     lastExpect = data.Expect;
 
+    // ======================
+    // 🎲 XỬ LÝ XÚC XẮC
+    // ======================
     const [x1, x2, x3] = data.OpenCode.split(",").map(Number);
     const tong = x1 + x2 + x3;
+
     const ket_qua = getKetQua(tong);
 
+    // ======================
+    // 🧠 UPDATE HISTORY
+    // ======================
     updateHistory(ket_qua);
 
+    // ======================
+    // 🤖 AI ANALYZE
+    // ======================
     const ai = analyzeAI(history);
 
+    // ======================
+    // 📦 BUILD RESPONSE
+    // ======================
     currentData = {
       Phien_truoc: data.Expect,
       xuc_xac1: x1,
@@ -330,19 +346,39 @@ async function fetchData() {
       xuc_xac3: x3,
       tong: tong,
       ket_qua: ket_qua,
+
       Phien_hien_tai: nextExpect(data.Expect),
 
       pattern: getPattern(),
 
+      // ======================
       // 🔥 AI OUTPUT
+      // ======================
       du_doan: ai.du_doan,
-      do_tin_cay: ai.do_tin_cay + "%",
+      do_tin_cay: ai.do_tin_cay,
+      do_tin_cay_level: ai.do_tin_cay_level,
+
+      reversal_signal: ai.reversal_signal,
+
+      cau_status: ai.cau_status,
+      cau_theo: ai.cau_theo,
+      pattern_type: ai.pattern_type,
+
       chi_tiet: ai.chi_tiet,
 
       OpenTime: data.OpenTime
     };
 
-    console.log("✅ NEW:", currentData.pattern, ai.du_doan);
+    console.log(
+      "✅ NEW:",
+      currentData.Phien_truoc,
+      "|",
+      currentData.ket_qua,
+      "| AI:",
+      ai.du_doan,
+      "| CONF:",
+      ai.do_tin_cay
+    );
 
   } catch (err) {
     console.log("❌ Fetch lỗi:", err.message);
