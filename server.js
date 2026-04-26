@@ -54,6 +54,13 @@ async function fetchData() {
     const data = res.data?.data;
     if (!data || !data.OpenCode) return;
 
+    // ❗ CHẶN TRÙNG
+    if (data.Expect === lastExpect) {
+      return; // chưa có phiên mới → bỏ qua
+    }
+
+    lastExpect = data.Expect;
+
     const [x1, x2, x3] = data.OpenCode.split(",").map(Number);
     const tong = x1 + x2 + x3;
     const ket_qua = getKetQua(tong);
@@ -72,10 +79,10 @@ async function fetchData() {
       OpenTime: data.OpenTime
     };
 
-    console.log("UPDATED:", currentData.Phien_truoc, currentData.pattern);
+    console.log("✅ NEW:", data.Expect, currentData.pattern);
 
   } catch (err) {
-    console.log("Fetch lỗi:", err.message);
+    console.log("❌ Fetch lỗi:", err.message);
   }
 }
 
