@@ -63,7 +63,7 @@ function analyzeAI(history) {
   if (history.length < 5) {
     return {
       du_doan: "Chưa đủ dữ liệu",
-      do_tin_cay: "0%",
+      do_tin_cay: "0",
       tong_quan: "Chưa đủ 5 phiên",
       chi_tiet: []
     };
@@ -144,7 +144,7 @@ function analyzeAI(history) {
   // ======================
   return {
     du_doan,
-    do_tin_cay: do_tin_cay + "%",
+    do_tin_cay: `${do_tin_cay}%`
     tong_quan: `${cau} | ${trend}`,
 
     chi_tiet: [
