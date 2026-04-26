@@ -63,14 +63,15 @@ function analyzeAI(history) {
   if (history.length < 5) {
     return {
       du_doan: "Chưa đủ dữ liệu",
-      do_tin_cay: 0,
+      do_tin_cay: "0%",
       tong_quan: "Chưa đủ 5 phiên",
       chi_tiet: []
     };
   }
 
-  const last10 = history.slice(-10);
   const last5 = history.slice(-5);
+  const last10 = history.slice(-10);
+  const last20 = history.slice(-20);
 
   const tai5 = last5.filter(x => x === "T").length;
   const xiu5 = last5.filter(x => x === "X").length;
@@ -78,56 +79,82 @@ function analyzeAI(history) {
   const tai10 = last10.filter(x => x === "T").length;
   const xiu10 = last10.filter(x => x === "X").length;
 
-  const currentPattern = history.join("");
+  const tai20 = last20.filter(x => x === "T").length;
+  const xiu20 = last20.filter(x => x === "X").length;
+
+  const pattern = history.join("");
 
   // ======================
-  // 🎯 DỰ ĐOÁN CHÍNH
+  // 🎯 BASE PREDICT
   // ======================
   let du_doan = tai5 >= xiu5 ? "Tài" : "Xỉu";
 
   // ======================
-  // 📊 CONFIDENCE BASE
+  // 📊 STABILITY (độ ổn định)
   // ======================
-  let base = Math.round((Math.max(tai5, xiu5) / 5) * 100);
+  const stability = Math.abs(tai10 - xiu10);
 
   // ======================
-  // 🔥 PHÂN TÍCH CẦU
+  // 🔥 DETECT BỆT DÀI
   // ======================
   let cau = "Bình thường";
 
-  if (currentPattern.endsWith("TTTT") || tai10 >= 8) cau = "Bệt Tài";
-  if (currentPattern.endsWith("XXXX") || xiu10 >= 8) cau = "Bệt Xỉu";
+  const lastChar = pattern.slice(-1);
+  const streak = (pattern.match(new RegExp(lastChar + "+$")) || [""])[0].length;
 
-  if (currentPattern.includes("TXTXTX")) cau = "Cầu 1-1";
+  if (lastChar === "T" && streak >= 4) cau = "Bệt Tài";
+  if (lastChar === "X" && streak >= 4) cau = "Bệt Xỉu";
 
-  // ======================
-  // 📈 TREND ANALYSIS
-  // ======================
-  let trend = "Ổn định";
-
-  if (tai10 > xiu10 + 2) trend = "Thiên Tài";
-  if (xiu10 > tai10 + 2) trend = "Thiên Xỉu";
+  if (pattern.includes("TXTXTX")) cau = "Cầu 1-1";
 
   // ======================
-  // 🔥 ĐỘ TIN CẬY CUỐI
+  // 📈 TREND
   // ======================
+  let trend = "Sideway";
+
+  if (tai20 > xiu20 + 3) trend = "Up Tài";
+  if (xiu20 > tai20 + 3) trend = "Up Xỉu";
+
+  // ======================
+  // ⚡ VOLATILITY (độ rung)
+  // ======================
+  let volatility = 0;
+
+  for (let i = 1; i < last10.length; i++) {
+    if (last10[i] !== last10[i - 1]) volatility++;
+  }
+
+  volatility = Math.round((volatility / 9) * 100);
+
+  // ======================
+  // 🎯 CONFIDENCE ENGINE
+  // ======================
+  let base = Math.round((Math.max(tai5, xiu5) / 5) * 100);
+
   let do_tin_cay = base;
 
   if (cau !== "Bình thường") do_tin_cay += 10;
-  if (trend !== "Ổn định") do_tin_cay += 5;
+  if (trend !== "Sideway") do_tin_cay += 5;
+  if (volatility < 40) do_tin_cay += 5; // ít rung → dễ đoán hơn
 
-  do_tin_cay = Math.min(95, do_tin_cay);
+  do_tin_cay = Math.min(97, do_tin_cay);
 
+  // ======================
+  // 📦 RETURN FULL
+  // ======================
   return {
     du_doan,
     do_tin_cay: do_tin_cay + "%",
     tong_quan: `${cau} | ${trend}`,
 
     chi_tiet: [
-      `5 phiên gần nhất: Tài ${tai5} - Xỉu ${xiu5}`,
-      `10 phiên gần nhất: Tài ${tai10} - Xỉu ${xiu10}`,
-      `Cầu hiện tại: ${cau}`,
-      `Xu hướng: ${trend}`
+      `5 phiên: Tài ${tai5} - Xỉu ${xiu5}`,
+      `10 phiên: Tài ${tai10} - Xỉu ${xiu10}`,
+      `20 phiên: Tài ${tai20} - Xỉu ${xiu20}`,
+      `Cầu: ${cau}`,
+      `Xu hướng: ${trend}`,
+      `Độ rung: ${volatility}%`,
+      `Stability: ${stability}`
     ]
   };
 }
@@ -189,14 +216,18 @@ async function fetchData() {
 // ======================
 // START
 // ======================
-async function loop() {
-  await fetchData();
-  setTimeout(loop, 1500); // nhanh hơn interval + ổn định hơn
+async function loopFetch() {
+  try {
+    await fetchData();
+  } catch (e) {}
+
+  // 🔥 không cố định 3s nữa
+  setTimeout(loopFetch, 1200);
 }
 
 (async () => {
-  await fetchData();
-  loop();
+  await fetchData();   // load ngay
+  loopFetch();         // chạy realtime
 })();
 
 // ======================
