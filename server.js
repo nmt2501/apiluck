@@ -32,8 +32,7 @@ function updateHistory(result) {
   const val = result === "Tài" ? "T" : "X";
 
   history.push(val);
-
-  if (history.length > 20) history.shift();
+  if (history.length > 50) history.shift();
 }
 
 // ======================
@@ -41,6 +40,77 @@ function updateHistory(result) {
 // ======================
 function getPattern() {
   return history.join("");
+}
+
+// ======================
+// 🧠 SO SÁNH PATTERN
+// ======================
+function similarity(a, b) {
+  let match = 0;
+  const len = Math.min(a.length, b.length);
+
+  for (let i = 0; i < len; i++) {
+    if (a[i] === b[i]) match++;
+  }
+
+  return (match / len) * 100;
+}
+
+// ======================
+// 🤖 DỰ ĐOÁN + AI
+// ======================
+function analyzeAI(history) {
+  if (history.length < 5) {
+    return {
+      du_doan: "Chưa đủ dữ liệu",
+      do_tin_cay: 0,
+      chi_tiet: []
+    };
+  }
+
+  const current = history.join("");
+
+  const last5 = history.slice(-5);
+  const tai = last5.filter(x => x === "T").length;
+  const xiu = last5.filter(x => x === "X").length;
+
+  // basic prediction
+  let du_doan = tai >= xiu ? "Tài" : "Xỉu";
+
+  // confidence
+  let do_tin_cay = Math.round((Math.max(tai, xiu) / 5) * 100);
+
+  // detect pattern
+  let best = 0;
+  let matchName = "Không rõ";
+
+  const patterns = [
+    { name: "Bệt Tài", pattern: "TTTT" },
+    { name: "Bệt Xỉu", pattern: "XXXX" },
+    { name: "Cầu 1-1", pattern: "TXTX" }
+  ];
+
+  for (let p of patterns) {
+    const score = similarity(current.slice(-p.pattern.length), p.pattern);
+
+    if (score > best) {
+      best = score;
+      matchName = p.name;
+    }
+  }
+
+  do_tin_cay = Math.min(95, do_tin_cay + Math.round(best / 2));
+
+  return {
+    du_doan,
+    do_tin_cay,
+    chi_tiet: [
+      "5 phiên gần nhất",
+      `Tài: ${tai}`,
+      `Xỉu: ${xiu}`,
+      `Pattern match: ${matchName}`
+    ]
+  };
 }
 
 // ======================
@@ -56,10 +126,7 @@ async function fetchData() {
     const data = res.data?.data;
     if (!data || !data.OpenCode) return;
 
-    // ❗ CHẶN TRÙNG EXPECT (nhưng cho phép lần đầu)
-    if (lastExpect && data.Expect === lastExpect) {
-      return;
-    }
+    if (lastExpect && data.Expect === lastExpect) return;
 
     lastExpect = data.Expect;
 
@@ -69,6 +136,8 @@ async function fetchData() {
 
     updateHistory(ket_qua);
 
+    const ai = analyzeAI(history);
+
     currentData = {
       Phien_truoc: data.Expect,
       xuc_xac1: x1,
@@ -77,11 +146,18 @@ async function fetchData() {
       tong: tong,
       ket_qua: ket_qua,
       Phien_hien_tai: nextExpect(data.Expect),
+
       pattern: getPattern(),
+
+      // 🔥 AI OUTPUT
+      du_doan: ai.du_doan,
+      do_tin_cay: ai.do_tin_cay + "%",
+      chi_tiet: ai.chi_tiet,
+
       OpenTime: data.OpenTime
     };
 
-    console.log("✅ NEW:", currentData.Phien_truoc, currentData.pattern);
+    console.log("✅ NEW:", currentData.pattern, ai.du_doan);
 
   } catch (err) {
     console.log("❌ Fetch lỗi:", err.message);
@@ -89,48 +165,27 @@ async function fetchData() {
 }
 
 // ======================
-// 🚀 STARTUP FETCH (FIX CHÍNH)
+// START
 // ======================
 (async () => {
-  console.log("⏳ Fetch lần đầu...");
   await fetchData();
 })();
 
-// chạy mỗi 3s
 setInterval(fetchData, 3000);
 
 // ======================
-// 🌐 ROUTE
+// ROUTE
 // ======================
 app.get("/", (req, res) => {
   res.send("API đang chạy 🚀");
 });
 
-// ======================
-// 🎯 API
-// ======================
-app.get("/api/luck/md5", async (req, res) => {
-  try {
-    // ❗ fallback nếu chưa có data
-    if (!currentData) {
-      console.log("⏳ Fetch fallback...");
-      await fetchData();
-    }
-
-    if (!currentData) {
-      return res.json({
-        error: "Chưa có dữ liệu (API gốc chưa trả)"
-      });
-    }
-
-    res.json(currentData);
-
-  } catch (err) {
-    res.status(500).json({
-      error: "Lỗi server",
-      detail: err.message
-    });
+app.get("/api/luck/md5", (req, res) => {
+  if (!currentData) {
+    return res.json({ error: "Chưa có dữ liệu" });
   }
+
+  res.json(currentData);
 });
 
 app.listen(PORT, () => {
