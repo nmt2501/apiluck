@@ -144,7 +144,7 @@ function analyzeAI(history) {
   // ======================
   return {
     du_doan,
-    do_tin_cay: `${do_tin_cay}%`
+    do_tin_cay: `${do_tin_cay}%`,
     tong_quan: `${cau} | ${trend}`,
 
     chi_tiet: [
