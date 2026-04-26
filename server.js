@@ -404,7 +404,6 @@ async function fetchData() {
       // ======================
       Phien_truoc: data.Expect,
       Phien_cu: prevExpect,
-      Phien_hien_tai: nextExpect(data.Expect),
 
       // ======================
       // 🎲 KẾT QUẢ
@@ -414,6 +413,11 @@ async function fetchData() {
       xuc_xac3: x3,
       tong,
       ket_qua,
+
+      // ======================
+      // 📊 PHIÊN HIỆN TẠI
+      // ======================
+      Phien_hien_tai: nextExpect(data.Expect),
 
       // ======================
       // 📊 PATTERN
