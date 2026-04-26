@@ -5,11 +5,10 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ======================
-// 🧠 CACHE DATA
+// 🧠 CACHE
 // ======================
 let currentData = null;
 let history = [];
-
 let lastExpect = null;
 
 // ======================
@@ -32,6 +31,9 @@ function nextExpect(expect) {
 function updateHistory(result) {
   const val = result === "Tài" ? "T" : "X";
 
+  // ❗ tránh spam cùng phiên
+  if (history[history.length - 1] === val) return;
+
   history.push(val);
   if (history.length > 20) history.shift();
 }
@@ -44,7 +46,7 @@ function getPattern() {
 }
 
 // ======================
-// 🔄 AUTO FETCH
+// 🔄 FETCH
 // ======================
 async function fetchData() {
   try {
@@ -56,9 +58,9 @@ async function fetchData() {
     const data = res.data?.data;
     if (!data || !data.OpenCode) return;
 
-    // ❗ CHẶN TRÙNG
-    if (data.Expect === lastExpect) {
-      return; // chưa có phiên mới → bỏ qua
+    // ❗ CHẶN TRÙNG EXPECT (nhưng cho phép lần đầu)
+    if (lastExpect && data.Expect === lastExpect) {
+      return;
     }
 
     lastExpect = data.Expect;
@@ -81,35 +83,56 @@ async function fetchData() {
       OpenTime: data.OpenTime
     };
 
-    console.log("✅ NEW:", data.Expect, currentData.pattern);
+    console.log("✅ NEW:", currentData.Phien_truoc, currentData.pattern);
 
   } catch (err) {
     console.log("❌ Fetch lỗi:", err.message);
   }
 }
 
-// chạy ngay khi start
-fetchData();
+// ======================
+// 🚀 STARTUP FETCH (FIX CHÍNH)
+// ======================
+(async () => {
+  console.log("⏳ Fetch lần đầu...");
+  await fetchData();
+})();
 
-// chạy mỗi 3 giây
+// chạy mỗi 3s
 setInterval(fetchData, 3000);
 
 // ======================
 // 🌐 ROUTE
 // ======================
 app.get("/", (req, res) => {
-  res.send("Xem Cái Địt Mẹ Mày - Đéo Phải Api Share Đâu Nhé");
+  res.send("API đang chạy 🚀");
 });
 
 // ======================
-// 🎯 API TRẢ CACHE
+// 🎯 API
 // ======================
-app.get("/api/luck/md5", (req, res) => {
-  if (!currentData) {
-    return res.json({ error: "Chưa có dữ liệu" });
-  }
+app.get("/api/luck/md5", async (req, res) => {
+  try {
+    // ❗ fallback nếu chưa có data
+    if (!currentData) {
+      console.log("⏳ Fetch fallback...");
+      await fetchData();
+    }
 
-  res.json(currentData);
+    if (!currentData) {
+      return res.json({
+        error: "Chưa có dữ liệu (API gốc chưa trả)"
+      });
+    }
+
+    res.json(currentData);
+
+  } catch (err) {
+    res.status(500).json({
+      error: "Lỗi server",
+      detail: err.message
+    });
+  }
 });
 
 app.listen(PORT, () => {
