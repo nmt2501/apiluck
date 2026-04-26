@@ -10,6 +10,8 @@ const PORT = process.env.PORT || 3000;
 let currentData = null;
 let history = [];
 
+let lastExpect = null;
+
 // ======================
 // 🎲 TÀI/XỈU
 // ======================
