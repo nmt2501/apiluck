@@ -89,7 +89,7 @@ setInterval(fetchData, 3000);
 // 🌐 ROUTE
 // ======================
 app.get("/", (req, res) => {
-  res.send("API auto fetch đang chạy 🚀");
+  res.send("Xem Cái Địt Mẹ Mày - Đéo Phải Api Share Đâu Nhé");
 });
 
 // ======================
