@@ -31,10 +31,8 @@ function nextExpect(expect) {
 function updateHistory(result) {
   const val = result === "Tài" ? "T" : "X";
 
-  // ❗ tránh spam cùng phiên
-  if (history[history.length - 1] === val) return;
-
   history.push(val);
+
   if (history.length > 20) history.shift();
 }
 
