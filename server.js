@@ -42,23 +42,86 @@ function getPattern() {
   return history.join("");
 }
 
-// ======================
-// 🧠 SO SÁNH PATTERN
-// ======================
 function similarity(a, b) {
-  let match = 0;
-  const len = Math.min(a.length, b.length);
+  if (!a || !b) return 0;
 
+  const A = a.split("");
+  const B = b.split("");
+
+  const len = Math.min(A.length, B.length);
+
+  let score = 0;
+
+  // ======================
+  // 1. MATCH DIRECT (nhẹ)
+  // ======================
+  let direct = 0;
   for (let i = 0; i < len; i++) {
-    if (a[i] === b[i]) match++;
+    if (A[i] === B[i]) direct++;
   }
 
-  return (match / len) * 100;
+  const directScore = (direct / len) * 40; // chỉ 40% trọng số
+
+  // ======================
+  // 2. TRANSITION MATCH (QUAN TRỌNG)
+  // so sánh chuyển trạng thái T→X, X→T
+  // ======================
+  let transA = [];
+  let transB = [];
+
+  for (let i = 1; i < len; i++) {
+    transA.push(A[i] === A[i - 1] ? "S" : "F"); // Same / Flip
+    transB.push(B[i] === B[i - 1] ? "S" : "F");
+  }
+
+  let transMatch = 0;
+  for (let i = 0; i < transA.length; i++) {
+    if (transA[i] === transB[i]) transMatch++;
+  }
+
+  const transScore = (transMatch / Math.max(1, transA.length)) * 40;
+
+  // ======================
+  // 3. PATTERN STRUCTURE (BỆT / ĐẢO / MIX)
+  // ======================
+  const typeA = detectType(A);
+  const typeB = detectType(B);
+
+  let structureScore = typeA === typeB ? 20 : 0;
+
+  // ======================
+  // FINAL SCORE
+  // ======================
+  score = directScore + transScore + structureScore;
+
+  return Math.min(100, Math.round(score));
 }
 
 // ======================
-// 🤖 DỰ ĐOÁN + AI
+// 🧠 DETECT PATTERN TYPE
 // ======================
+function detectType(arr) {
+  let streak = 1;
+  let maxStreak = 1;
+  let flip = 0;
+
+  for (let i = 1; i < arr.length; i++) {
+    if (arr[i] === arr[i - 1]) {
+      streak++;
+    } else {
+      maxStreak = Math.max(maxStreak, streak);
+      streak = 1;
+      flip++;
+    }
+  }
+
+  maxStreak = Math.max(maxStreak, streak);
+
+  if (maxStreak >= 4) return "BET";
+  if (flip >= arr.length * 0.6) return "DAO";
+  return "MIX";
+}
+
 function analyzeAI(history) {
   if (history.length < 5) {
     return {
@@ -93,7 +156,7 @@ function analyzeAI(history) {
   const xiu20 = [...last20].filter(x => x === "X").length;
 
   // ======================
-  // 🎯 DỰ ĐOÁN
+  // 🎯 DỰ ĐOÁN GỐC
   // ======================
   let du_doan = tai5 >= xiu5 ? "Tài" : "Xỉu";
 
@@ -104,7 +167,7 @@ function analyzeAI(history) {
   const streak = (pattern.match(new RegExp(lastChar + "+$")) || [""])[0].length;
 
   // ======================
-  // 🔥 BLOCK PATTERN
+  // 🧠 UNIVERSAL BLOCK ENGINE (QUAN TRỌNG NHẤT)
   // ======================
   let blocks = [];
   let count = 1;
@@ -113,33 +176,32 @@ function analyzeAI(history) {
     if (pattern[i] === pattern[i - 1]) {
       count++;
     } else {
-      blocks.push(pattern[i - 1] + count);
+      blocks.push({ type: pattern[i - 1], len: count });
       count = 1;
     }
   }
 
-  const blockStr = blocks.join(" ");
+  const blockStr = blocks.map(b => b.type + b.len).join(" ");
+
+  const avgBlock =
+    blocks.reduce((sum, b) => sum + b.len, 0) / blocks.length;
 
   // ======================
-  // 🔥 PATTERN TYPE
+  // 🔥 UNIVERSAL PATTERN DETECTION
   // ======================
   let pattern_type = "Normal";
 
-  if (blockStr.includes("T1 X2 T1") || blockStr.includes("X1 T2 X1")) {
-    pattern_type = "Cầu 1-2-1 / 2-1-2";
-  }
+  const isZigZag = /TXTX|XTXT/.test(pattern);
+  const isStrongTrend = streak >= 4;
+  const isLongRepeat = avgBlock >= 3;
+  const isShortFlip = avgBlock <= 1.5;
 
-  if (blockStr.includes("T2 X2") || blockStr.includes("X2 T2")) {
-    pattern_type = "Cầu 2-2";
-  }
-
-  if (blockStr.includes("T2") || blockStr.includes("X2")) {
-    pattern_type = "Cầu 11 / 22";
-  }
-
-  if (pattern.includes("TXTXTX")) {
-    pattern_type = "Cầu 1-1";
-  }
+  if (isZigZag) pattern_type = "Cầu zigzag (1-1 biến thể)";
+  else if (isLongRepeat) pattern_type = "Cầu bệt dài";
+  else if (isShortFlip) pattern_type = "Cầu đảo nhanh";
+  else if (streak >= 5) pattern_type = "Cầu bệt mạnh";
+  else if (/T2 X2|X2 T2/.test(blockStr)) pattern_type = "Cầu 2-2";
+  else if (/T1 X2 T1|X1 T2 X1/.test(blockStr)) pattern_type = "Cầu 1-2-1 / 2-1-2";
 
   // ======================
   // 📈 TREND
@@ -150,7 +212,7 @@ function analyzeAI(history) {
   if (xiu20 > tai20 + 3) trend = "Up Xỉu";
 
   // ======================
-  // ⚡ VOLATILITY
+  // ⚡ VOLATILITY (CHUẨN HÓA)
   // ======================
   let flip = 0;
 
@@ -158,17 +220,17 @@ function analyzeAI(history) {
     if (last10[i] !== last10[i - 1]) flip++;
   }
 
-  let volatility = Math.round((flip / 9) * 100);
+  const volatility = (flip / Math.max(1, last10.length - 1)) * 100;
 
   // ======================
-  // 🔥 CẦU STATUS
+  // 🔥 CẦU STATUS (THÔNG MINH HƠN)
   // ======================
   let cau_status = "Cầu ổn định";
 
-  if (volatility < 35 && streak <= 3) cau_status = "Cầu an toàn";
-  if (volatility > 70) cau_status = "Cầu loạn";
+  if (volatility < 25 && avgBlock >= 2) cau_status = "Cầu an toàn";
+  if (volatility > 75) cau_status = "Cầu loạn";
   if (streak >= 5 && volatility > 50) cau_status = "Cầu dễ gãy";
-  if (flip >= 7 && volatility > 60) cau_status = "Cầu bị nhiễu";
+  if (volatility > 60 && flip >= 7) cau_status = "Cầu nhiễu";
 
   // ======================
   // 🔥 CẦU ĐANG THEO
@@ -176,76 +238,67 @@ function analyzeAI(history) {
   let cau_theo = "Không rõ";
 
   if (streak >= 3) {
-    cau_theo = lastChar === "T" ? "Đang theo Tài" : "Đang theo Xỉu";
+    cau_theo = lastChar === "T" ? "Theo Tài" : "Theo Xỉu";
   }
 
-  if (pattern_type.includes("1-1")) {
-    cau_theo = "Đang theo cầu 1-1";
-  }
+  if (pattern_type.includes("zigzag")) cau_theo = "Theo cầu 1-1";
+  if (pattern_type.includes("1-2-1")) cau_theo = "Theo 1-2-1";
+  if (pattern_type.includes("2-2")) cau_theo = "Theo 2-2";
 
-  if (pattern_type.includes("1-2-1")) {
-    cau_theo = "Đang theo cầu 1-2-1 / 2-1-2";
-  }
-
-  if (trend !== "Sideway") {
-    cau_theo += ` | ${trend}`;
-  }
+  if (trend !== "Sideway") cau_theo += ` | ${trend}`;
 
   // ======================
-  // 🧠 SMART CONFIDENCE (GIỮ NGUYÊN)
+  // 🧠 VIP CONFIDENCE ENGINE
   // ======================
   let confidence = 0;
 
   const diff20 = tai20 - xiu20;
-  if (Math.abs(diff20) >= 6) confidence += 30;
-  else if (Math.abs(diff20) >= 4) confidence += 22;
-  else if (Math.abs(diff20) >= 2) confidence += 15;
-  else confidence += 8;
 
-  if (cau_status === "Cầu an toàn") confidence += 30;
-  else if (cau_status === "Cầu ổn định") confidence += 22;
-  else if (cau_status === "Cầu dễ gãy") confidence += 10;
-  else confidence += 5;
+  // trend power
+  confidence += Math.min(30, Math.abs(diff20) * 3);
 
+  // pattern strength
+  if (pattern_type === "Cầu zigzag (1-1 biến thể)") confidence += 20;
+  else if (pattern_type === "Cầu 2-2") confidence += 18;
+  else if (pattern_type === "Cầu 1-2-1 / 2-1-2") confidence += 22;
+  else if (pattern_type === "Cầu bệt dài") confidence += 10;
+
+  // stability
+  if (cau_status === "Cầu an toàn") confidence += 25;
+  if (cau_status === "Cầu ổn định") confidence += 18;
+  if (cau_status === "Cầu dễ gãy") confidence += 5;
+
+  // volatility impact
   if (volatility < 25) confidence += 20;
-  else if (volatility < 40) confidence += 15;
-  else if (volatility < 60) confidence += 10;
-  else confidence += 3;
+  else if (volatility < 45) confidence += 12;
+  else if (volatility < 65) confidence += 6;
+  else confidence += 2;
 
-  if (pattern_type.includes("1-2-1")) confidence += 15;
-  else if (pattern_type.includes("1-1")) confidence += 12;
-  else if (pattern_type.includes("11") || pattern_type.includes("22")) confidence += 8;
-  else confidence += 5;
-
+  // balance
   const balance = Math.abs(tai10 - xiu10);
-  if (balance <= 1) confidence += 5;
-  else if (balance <= 2) confidence += 3;
-  else confidence += 1;
+  confidence += balance <= 1 ? 8 : balance <= 2 ? 5 : 2;
 
-  confidence = Math.min(96, Math.round(confidence));
+  // streak penalty
+  if (streak >= 6) confidence -= 10;
+
+  confidence = Math.max(0, Math.min(97, Math.round(confidence)));
 
   // ======================
-  // 🔁 SMART REVERSE (MỚI THÊM)
+  // 🔁 REVERSE SIGNAL
   // ======================
   let reversal_signal = 0;
 
   if (streak >= 5) reversal_signal += 30;
-  else if (streak >= 4) reversal_signal += 20;
-
-  if (volatility > 70) reversal_signal += 30;
-  else if (volatility > 50) reversal_signal += 20;
-
+  if (volatility > 70) reversal_signal += 25;
   if (Math.abs(diff20) <= 2) reversal_signal += 15;
-
   if (cau_status === "Cầu dễ gãy") reversal_signal += 20;
   if (cau_status === "Cầu loạn") reversal_signal += 25;
-
-  if (flip >= 7) reversal_signal += 15;
+  if (flip >= 7) reversal_signal += 10;
 
   reversal_signal = Math.min(100, reversal_signal);
 
   // ======================
-  // 🔮 FINAL DECISION (TỰ ĐẢO)
+  // 🔮 FINAL DECISION
   // ======================
   let final_du_doan = du_doan;
 
@@ -258,12 +311,12 @@ function analyzeAI(history) {
   }
 
   // ======================
-  // LEVEL
+  // 🧠 LEVEL
   // ======================
   let level = "LOW";
-  if (confidence >= 85) level = "VERY HIGH";
-  else if (confidence >= 70) level = "HIGH";
-  else if (confidence >= 50) level = "MEDIUM";
+  if (confidence >= 88) level = "VERY HIGH";
+  else if (confidence >= 72) level = "HIGH";
+  else if (confidence >= 52) level = "MEDIUM";
 
   // ======================
   // 📦 RETURN
@@ -275,29 +328,27 @@ function analyzeAI(history) {
 
     reversal_signal: `${reversal_signal}%`,
 
-    tong_quan: `${cau_status} | ${trend}`,
     pattern_type,
     cau_status,
     cau_theo,
+    tong_quan: `${cau_status} | ${trend}`,
 
     chi_tiet: [
       `Pattern: ${pattern.slice(-10)}`,
       `Block: ${blockStr}`,
-      `5 phiên: Tài ${tai5} - Xỉu ${xiu5}`,
-      `10 phiên: Tài ${tai10} - Xỉu ${xiu10}`,
-      `20 phiên: Tài ${tai20} - Xỉu ${xiu20}`,
-      `Cầu trạng thái: ${cau_status}`,
-      `Cầu đang theo: ${cau_theo}`,
+      `AvgBlock: ${avgBlock.toFixed(2)}`,
+      `5p: T${tai5}-X${xiu5}`,
+      `10p: T${tai10}-X${xiu10}`,
+      `20p: T${tai20}-X${xiu20}`,
+      `Cầu: ${cau_status}`,
+      `Theo: ${cau_theo}`,
       `Trend: ${trend}`,
-      `Volatility: ${volatility}%`,
-      `Reversal: ${reversal_signal}%`
+      `Volatility: ${volatility.toFixed(1)}%`,
+      `Streak: ${streak}`
     ]
   };
 }
 
-// ======================
-// 🔄 FETCH (UPGRADED)
-// ======================
 async function fetchData() {
   try {
     const res = await axios.get(
@@ -306,16 +357,20 @@ async function fetchData() {
     );
 
     const data = res.data?.data;
-    if (!data || !data.OpenCode) return;
+    if (!data || !data.OpenCode || !data.Expect) return;
 
     // ======================
-    // 🔥 CHẶN TRÙNG + FIX LỖI LỆCH PHIÊN
+    // 🔥 SAFE CHECK (KHÔNG MISS PHIÊN)
     // ======================
-    if (lastExpect && data.Expect === lastExpect) {
+    if (lastExpect === data.Expect) {
       console.log("⏳ chưa có phiên mới:", data.Expect);
       return;
     }
 
+    // ======================
+    // 🎯 LƯU EXPECT CŨ (DEBUG + TRACE)
+    // ======================
+    const prevExpect = lastExpect;
     lastExpect = data.Expect;
 
     // ======================
@@ -323,11 +378,10 @@ async function fetchData() {
     // ======================
     const [x1, x2, x3] = data.OpenCode.split(",").map(Number);
     const tong = x1 + x2 + x3;
-
     const ket_qua = getKetQua(tong);
 
     // ======================
-    // 🧠 UPDATE HISTORY
+    // 🧠 HISTORY UPDATE (GIỮ EXPECT TRACE)
     // ======================
     updateHistory(ket_qua);
 
@@ -337,22 +391,37 @@ async function fetchData() {
     const ai = analyzeAI(history);
 
     // ======================
-    // 📦 BUILD RESPONSE
+    // 📊 PATTERN SAFE
+    // ======================
+    const pattern = getPattern();
+
+    // ======================
+    // 📦 BUILD DATA (FULL DEBUG READY)
     // ======================
     currentData = {
+      // ======================
+      // 📌 PHIÊN
+      // ======================
       Phien_truoc: data.Expect,
+      Phien_cu: prevExpect,
+      Phien_hien_tai: nextExpect(data.Expect),
+
+      // ======================
+      // 🎲 KẾT QUẢ
+      // ======================
       xuc_xac1: x1,
       xuc_xac2: x2,
       xuc_xac3: x3,
-      tong: tong,
-      ket_qua: ket_qua,
-
-      Phien_hien_tai: nextExpect(data.Expect),
-
-      pattern: getPattern(),
+      tong,
+      ket_qua,
 
       // ======================
-      // 🔥 AI OUTPUT
+      // 📊 PATTERN
+      // ======================
+      pattern,
+
+      // ======================
+      // 🤖 AI OUTPUT
       // ======================
       du_doan: ai.du_doan,
       do_tin_cay: ai.do_tin_cay,
@@ -364,27 +433,28 @@ async function fetchData() {
       cau_theo: ai.cau_theo,
       pattern_type: ai.pattern_type,
 
+      // ======================
+      // 📋 DEBUG / AI TRACE (QUAN TRỌNG)
+      // ======================
+      history_length: history.length,
+      last_result: history.slice(-1)[0],
+
       chi_tiet: ai.chi_tiet,
 
       OpenTime: data.OpenTime
     };
 
+    // ======================
+    // 🧾 LOG CLEAN
+    // ======================
     console.log(
-      "✅ NEW:",
-      currentData.Phien_truoc,
-      "|",
-      currentData.ket_qua,
-      "| AI:",
-      ai.du_doan,
-      "| CONF:",
-      ai.do_tin_cay
+      `✅ ${data.Expect} | ${ket_qua} | AI: ${ai.du_doan} | CONF: ${ai.do_tin_cay}`
     );
 
   } catch (err) {
     console.log("❌ Fetch lỗi:", err.message);
   }
 }
-
 // ======================
 // START
 // ======================
